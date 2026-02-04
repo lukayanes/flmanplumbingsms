@@ -4,6 +4,9 @@ export default {
       return new Response("Method Not Allowed", { status: 405 });
     }
 
+    console.log("VERSION TEST 2026-02-04-JSON");
+
+
     const form = await request.formData();
 
     // honeypot
