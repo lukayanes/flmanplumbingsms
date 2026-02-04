@@ -4,13 +4,11 @@ export default {
       return new Response("Method Not Allowed", { status: 405 });
     }
 
-    console.log("VERSION TEST 2026-02-04-204");
-
     const form = await request.formData();
 
-    // honeypot (silently succeed)
+    // honeypot
     if (form.get("_gotcha")) {
-      return new Response(null, { status: 204 });
+      return new Response("OK", { status: 200 });
     }
 
     const name = form.get("fullName") || "";
@@ -29,7 +27,7 @@ Message: ${message}`;
       `${env.TWILIO_API_KEY_SID}:${env.TWILIO_API_KEY_SECRET}`
     );
 
-    const res = await fetch(
+    await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
       {
         method: "POST",
@@ -45,14 +43,6 @@ Message: ${message}`;
       }
     );
 
-    // surface Twilio errors if they happen
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("Twilio error:", err);
-      return new Response(null, { status: 500 });
-    }
-
-    // SUCCESS — JS-friendly, no parsing, no network error
-    return new Response(null, { status: 204 });
+    return new Response("OK", { status: 200 });
   }
 };
