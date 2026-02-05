@@ -130,21 +130,7 @@ Message: ${message}`;
       }
     );
 
-    const referer = request.headers.get("referer") || "";
-let page = "Unknown";
-
-try {
-  const url = new URL(referer);
-  const path = url.pathname.replace(/\/$/, ""); // remove trailing slash
-
-  if (path === "" || path === "/") {
-    page = "Home";
-  } else if (path.includes("contact")) {
-    page = "Contact";
-  } else {
-    page = path.replace("/", "").toUpperCase();
-  }
-} catch {}
+   
 
 
     await appendToSheet(env, [
@@ -153,7 +139,7 @@ try {
   phone,
   email,
   message,
-  page,
+  request.headers.get("referer") || "",
   request.headers.get("cf-connecting-ip") || ""
 ]);
 
