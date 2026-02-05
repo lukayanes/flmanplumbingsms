@@ -16,7 +16,7 @@ export default {
     const email = form.get("email") || "";
     const message = form.get("message") || "";
 
-    const smsBody =
+    const smsBody = 
 `New website lead:
 Name: ${name}
 Phone: ${phone}
@@ -28,24 +28,25 @@ Message: ${message}`;
     );
 
     const twRes = await fetch(
-  `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${auth}`,
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: new URLSearchParams({
-      To: "+19139577764",
-      MessagingServiceSid: "MG5a89f3068db9e5c114c72f1dfe78ce75",
-      Body: smsBody
-    })
+      `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          To: "+19139577764",
+          MessagingServiceSid: "MG5a89f3068db9e5c114c72f1dfe78ce75",
+          Body: smsBody
+        })
+      }
+    );
+
+    const twText = await twRes.text();
+    console.log("TWILIO_STATUS", twRes.status);
+    console.log("TWILIO_BODY", twText);
+
+    return new Response("OK", { status: 200 });
   }
-);
-
-const twText = await twRes.text();
-console.log("TWILIO_STATUS", twRes.status);
-console.log("TWILIO_BODY", twText);
-
-return new Response(twText, { status: twRes.status });
-
+};
