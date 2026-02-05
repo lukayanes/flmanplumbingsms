@@ -1,12 +1,24 @@
 export default {
   async fetch(request, env) {
+
+    // ✅ Handle CORS preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+    }
+
     if (request.method !== "POST") {
       return new Response("Method Not Allowed", { status: 405 });
     }
 
     const form = await request.formData();
 
-    // honeypot
     if (form.get("_gotcha")) {
       return new Response("OK", { status: 200 });
     }
@@ -16,7 +28,7 @@ export default {
     const email = form.get("email") || "";
     const message = form.get("message") || "";
 
-    const smsBody = 
+    const smsBody =
 `New website lead:
 Name: ${name}
 Phone: ${phone}
@@ -27,7 +39,7 @@ Message: ${message}`;
       `${env.TWILIO_API_KEY_SID}:${env.TWILIO_API_KEY_SECRET}`
     );
 
-    const twRes = await fetch(
+    await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
       {
         method: "POST",
@@ -43,10 +55,12 @@ Message: ${message}`;
       }
     );
 
-    const twText = await twRes.text();
-    console.log("TWILIO_STATUS", twRes.status);
-    console.log("TWILIO_BODY", twText);
-
-    return new Response("OK", { status: 200 });
+    // ✅ CORS-enabled success response
+    return new Response("OK", {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
   }
 };
