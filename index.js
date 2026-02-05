@@ -129,7 +129,7 @@ Message: ${message}`;
     );
 
     await appendToSheet(env, [
-  new Date().toISOString(),
+  new Date().toLocaleString("en-US", { timeZone: "America/New_York" }),
   name,
   phone,
   email,
@@ -137,6 +137,7 @@ Message: ${message}`;
   request.headers.get("referer") || "",
   request.headers.get("cf-connecting-ip") || ""
 ]);
+
 
 
     // ✅ CORS-enabled success response
