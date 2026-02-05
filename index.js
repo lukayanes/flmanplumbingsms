@@ -121,7 +121,7 @@ Message: ${message}`;
           "Content-Type": "application/x-www-form-urlencoded"
         },
         body: new URLSearchParams({
-          To: "+19414686310",
+          To: "+19139577764",
           MessagingServiceSid: "MG5a89f3068db9e5c114c72f1dfe78ce75",
           Body: smsBody
         })
