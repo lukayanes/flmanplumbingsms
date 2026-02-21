@@ -1,8 +1,9 @@
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-
+// index.js
 async function appendToSheet(env, row) {
-  const now = Math.floor(Date.now() / 1000);
-
+  const now = Math.floor(Date.now() / 1e3);
   const header = { alg: "RS256", typ: "JWT" };
   const claim = {
     iss: env.GOOGLE_CLIENT_EMAIL,
@@ -11,43 +12,23 @@ async function appendToSheet(env, row) {
     iat: now,
     exp: now + 3600
   };
-
-  const b64 = (obj) =>
-    btoa(JSON.stringify(obj))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-
+  const b64 = /* @__PURE__ */ __name((obj) => btoa(JSON.stringify(obj)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), "b64");
   const unsigned = `${b64(header)}.${b64(claim)}`;
-
   const keyPem = env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n");
-  const keyData = keyPem
-    .replace("-----BEGIN PRIVATE KEY-----", "")
-    .replace("-----END PRIVATE KEY-----", "")
-    .replace(/\n/g, "");
-
+  const keyData = keyPem.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace(/\n/g, "");
   const key = await crypto.subtle.importKey(
     "pkcs8",
-    Uint8Array.from(atob(keyData), c => c.charCodeAt(0)),
+    Uint8Array.from(atob(keyData), (c) => c.charCodeAt(0)),
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"]
   );
-
   const signature = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
     key,
     new TextEncoder().encode(unsigned)
   );
-
-  const jwt =
-    unsigned +
-    "." +
-    btoa(String.fromCharCode(...new Uint8Array(signature)))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-
+  const jwt = unsigned + "." + btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -56,9 +37,7 @@ async function appendToSheet(env, row) {
       assertion: jwt
     })
   });
-
   const { access_token } = await tokenRes.json();
-
   await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values/${env.GOOGLE_SHEET_NAME}!A1:append?valueInputOption=USER_ENTERED`,
     {
@@ -71,12 +50,9 @@ async function appendToSheet(env, row) {
     }
   );
 }
-
-
-export default {
+__name(appendToSheet, "appendToSheet");
+var index_default = {
   async fetch(request, env) {
-
-    // ✅ Handle CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
@@ -87,33 +63,79 @@ export default {
         }
       });
     }
-
     if (request.method !== "POST") {
       return new Response("Method Not Allowed", { status: 405 });
     }
-
     const form = await request.formData();
 
-    if (form.get("_gotcha")) {
-      return new Response("OK", { status: 200 });
-    }
+
+// Honeypot protection
+
+if (form.get("_gotcha") || form.get("referral_code")) {
+
+  return new Response("Spam blocked", { status: 400 });
+
+}
+
+
+
+// reCAPTCHA verification
+
+const captcha = form.get("g-recaptcha-response");
+
+if (!captcha) {
+
+  return new Response("Captcha missing", { status: 400 });
+
+}
+
+
+const verify = await fetch(
+  "https://www.google.com/recaptcha/api/siteverify",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      secret: env.RECAPTCHA_SECRET,
+      response: captcha,
+      remoteip: request.headers.get("cf-connecting-ip")
+    })
+  }
+);
+
+
+const captchaResult = await verify.json();
+
+
+if (!captchaResult.success) {
+
+  return new Response("Captcha failed", { status: 400 });
+
+}
+// Block direct Worker spam (must come from your website)
+
+const referer = request.headers.get("referer") || "";
+
+if (!referer.includes("flmanplumbing.com")) {
+
+  return new Response("OK", { status: 200 });
+
+}
 
     const name = form.get("fullName") || "";
     const phone = form.get("phone") || "";
     const email = form.get("email") || "";
     const message = form.get("message") || "";
-
-    const smsBody =
-`New Fl Man Plumbing Website Inquiry:
+    const smsBody = `New Fl Man Plumbing Website Inquiry:
 Name: ${name}
 Phone: ${phone}
 Email: ${email}
 Message: ${message}`;
-
     const auth = btoa(
       `${env.TWILIO_API_KEY_SID}:${env.TWILIO_API_KEY_SECRET}`
     );
-
     await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
       {
@@ -129,23 +151,15 @@ Message: ${message}`;
         })
       }
     );
-
-   
-
-
     await appendToSheet(env, [
-  new Date().toLocaleString("en-US", { timeZone: "America/New_York" }),
-  name,
-  phone,
-  email,
-  message,
-  request.headers.get("referer") || "",
-  request.headers.get("cf-connecting-ip") || ""
-]);
-
-
-
-    // ✅ CORS-enabled success response
+      (/* @__PURE__ */ new Date()).toLocaleString("en-US", { timeZone: "America/New_York" }),
+      name,
+      phone,
+      email,
+      message,
+      request.headers.get("referer") || "",
+      request.headers.get("cf-connecting-ip") || ""
+    ]);
     return new Response("OK", {
       status: 200,
       headers: {
@@ -154,3 +168,7 @@ Message: ${message}`;
     });
   }
 };
+export {
+  index_default as default
+};
+//# sourceMappingURL=index.js.map
