@@ -37,9 +37,11 @@ async function appendToSheet(env, row) {
       assertion: jwt
     })
   });
-  const { access_token } = await tokenRes.json();
-  await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values/${env.GOOGLE_SHEET_NAME}!A1:append?valueInputOption=USER_ENTERED`,
+  const tokenJson = await tokenRes.json();
+  const access_token = tokenJson.access_token;
+  if (!access_token) throw new Error("google token error: " + JSON.stringify(tokenJson).slice(0, 200));
+  const appendRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.GOOGLE_SHEET_ID}/values/${encodeURIComponent(env.GOOGLE_SHEET_NAME)}!A1:append?valueInputOption=USER_ENTERED`,
     {
       method: "POST",
       headers: {
@@ -49,6 +51,7 @@ async function appendToSheet(env, row) {
       body: JSON.stringify({ values: [row] })
     }
   );
+  if (!appendRes.ok) throw new Error("sheets append " + appendRes.status + ": " + (await appendRes.text()).slice(0, 200));
 }
 __name(appendToSheet, "appendToSheet");
 var index_default = {
@@ -114,57 +117,58 @@ if (!captchaResult.success) {
   return new Response("Captcha failed", { status: 400 });
 
 }
-// Block direct Worker spam (must come from your website)
-
+// Anti-spam: request should come from our site. We only BLOCK when a
+// referer is present and clearly off-site — an empty/stripped referer is
+// allowed (honeypot + reCAPTCHA already gate spam) so we never lose a real lead.
 const referer = request.headers.get("referer") || "";
-
-if (!referer.includes("flmanplumbing.com")) {
-
-  return new Response("OK", { status: 200 });
-
+const ALLOWED = ["callprolific.com", "flmanplumbing.com", ".workers.dev", "localhost"];
+if (referer && !ALLOWED.some((h) => referer.includes(h))) {
+  return new Response("Blocked", { status: 403 });
 }
 
     const name = form.get("fullName") || "";
     const phone = form.get("phone") || "";
     const email = form.get("email") || "";
     const message = form.get("message") || "";
-    const smsBody = `New Fl Man Plumbing Website Inquiry:
+    const smsBody = `New Prolific Plumbing Website Inquiry:
 Name: ${name}
 Phone: ${phone}
 Email: ${email}
 Message: ${message}`;
-    const auth = btoa(
-      `${env.TWILIO_API_KEY_SID}:${env.TWILIO_API_KEY_SECRET}`
-    );
-    await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${auth}`,
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: new URLSearchParams({
-          To: "+19414686310",
-          MessagingServiceSid: "MG5a89f3068db9e5c114c72f1dfe78ce75",
-          Body: smsBody
-        })
-      }
-    );
-    await appendToSheet(env, [
-      (/* @__PURE__ */ new Date()).toLocaleString("en-US", { timeZone: "America/New_York" }),
-      name,
-      phone,
-      email,
-      message,
-      request.headers.get("referer") || "",
-      request.headers.get("cf-connecting-ip") || ""
-    ]);
+
+    // Run SMS + Sheet independently so one failing can't block the other.
+    const errors = [];
+    try {
+      const auth = btoa(`${env.TWILIO_API_KEY_SID}:${env.TWILIO_API_KEY_SECRET}`);
+      const tw = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`,
+        {
+          method: "POST",
+          headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            To: "+19414686310",
+            MessagingServiceSid: "MG5a89f3068db9e5c114c72f1dfe78ce75",
+            Body: smsBody
+          })
+        }
+      );
+      if (!tw.ok) errors.push("twilio " + tw.status + ": " + (await tw.text()).slice(0, 200));
+    } catch (e) { errors.push("twilio_exc: " + e); }
+
+    try {
+      await appendToSheet(env, [
+        new Date().toLocaleString("en-US", { timeZone: "America/New_York" }),
+        name, phone, email, message,
+        referer,
+        request.headers.get("cf-connecting-ip") || ""
+      ]);
+    } catch (e) { errors.push("sheet_exc: " + e); }
+
+    if (errors.length) console.log("lead-webhook errors:", JSON.stringify(errors));
+
     return new Response("OK", {
       status: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*"
-      }
+      headers: { "Access-Control-Allow-Origin": "*" }
     });
   }
 };
